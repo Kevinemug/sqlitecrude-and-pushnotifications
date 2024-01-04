@@ -16,7 +16,9 @@
     "react-native-web": "~0.19.6",
     "react-dom": "18.2.0",
     "@expo/webpack-config": "^19.0.0",
-    "expo-sqlite": "~11.3.3"
+    "expo-sqlite": "~11.3.3",
+    "expo-notifications": "~0.20.1",
+    "expo-device": "~5.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

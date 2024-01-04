@@ -1,15 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TextInput, Button, FlatList, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TextInput, Button, FlatList, Text, TouchableOpacity, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import * as SQLite from 'expo-sqlite';
 
 const db = SQLite.openDatabase('newmydatabase.db');
 
-const App = () => {
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+export default function App() {
   const [inputText, setInputText] = useState('');
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [expoPushToken, setExpoPushToken] = useState('');
 
   useEffect(() => {
+    registerForPushNotificationsAsync().then(token => setExpoPushToken(token));
+
     db.transaction(
       tx => {
         tx.executeSql(
@@ -22,7 +35,6 @@ const App = () => {
       error => console.log('Transaction error:', error),
       fetchItems
     );
-    
   }, []);
 
   const fetchItems = () => {
@@ -58,11 +70,11 @@ const App = () => {
           () => {
             fetchItems();
             setInputText('');
+            sendPushNotification(expoPushToken, `New item added: ${inputText}`);
           },
-          (_, error) => console.log('SQL Error inserting item: ', error) // Corrected error logging
+          (_, error) => console.log('SQL Error inserting item: ', error)
         );
       });
-      
     }
   };
 
@@ -79,6 +91,45 @@ const App = () => {
         () => fetchItems(),
         error => console.log('Error deleting item: ' + error.message)
       );
+    });
+  };
+
+  const registerForPushNotificationsAsync = async () => {
+    if (!Device.isDevice) {
+      console.log('Must use physical device for Push Notifications');
+      return;
+    }
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      console.log('Failed to get push token for push notification!');
+      return;
+    }
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    setExpoPushToken(token);
+    return token;
+  };
+
+  const sendPushNotification = async (expoPushToken, body) => {
+    const message = {
+      to: expoPushToken,
+      sound: 'default',
+      title: ' From SQLite CRUD App',
+      body: body,
+      data: { someData: 'goes here' },
+    };
+
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
     });
   };
 
@@ -162,4 +213,3 @@ const styles = StyleSheet.create({
   }
 });
 
-export default App;
